@@ -87,7 +87,7 @@ pub async fn run() -> anyhow::Result<()> {
     });
 
     let input_data = vec![sphere::Sphere {
-        center: (0.0, 0.0, 0.0).into(),
+        center: (0.0, 0.0, 5.0).into(),
         radius: 3.0,
         color: [1.0, 1.0, 0.0, 1.0],
     }];
