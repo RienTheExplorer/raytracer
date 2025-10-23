@@ -15,19 +15,6 @@ pub async fn run() -> anyhow::Result<()> {
         .unwrap();
 
     let shader = device.create_shader_module(wgpu::include_wgsl!("simple_raytracer.wgsl"));
-
-    let input_data = vec![sphere::Sphere {
-        center: (0.0, 0.0, 0.0).into(),
-        radius: 3.0,
-        color: [0.0, 1.0, 0.0, 1.0],
-    }];
-
-    let input_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("input geometry"),
-        contents: bytemuck::cast_slice(&input_data),
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
-    });
-
     let texture_size = wgpu::Extent3d {
         width: 256,
         height: 256,
@@ -60,27 +47,24 @@ pub async fn run() -> anyhow::Result<()> {
             label: Some("texture_bind_group_layout"),
         });
 
-    let target_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        layout: &texture_bind_group_layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: wgpu::BindingResource::TextureView(&target_texture_view),
-        }],
-        label: Some("target_bind_group"),
-    });
-
-    let u32_size = std::mem::size_of::<u32>() as u32;
-
-    let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        size: (texture_size.width * texture_size.height * u32_size) as wgpu::BufferAddress,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        label: None,
-        mapped_at_creation: false,
-    });
+    let input_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("input_bind_group_layout"),
+        });
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Compute Pipeline Layout"),
-        bind_group_layouts: &[&texture_bind_group_layout],
+        bind_group_layouts: &[&texture_bind_group_layout, &input_bind_group_layout],
         push_constant_ranges: &[],
     });
 
@@ -93,6 +77,45 @@ pub async fn run() -> anyhow::Result<()> {
         cache: Default::default(),
     });
 
+    let target_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout: &texture_bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: wgpu::BindingResource::TextureView(&target_texture_view),
+        }],
+        label: Some("target_bind_group"),
+    });
+
+    let input_data = vec![sphere::Sphere {
+        center: (0.0, 0.0, 0.0).into(),
+        radius: 3.0,
+        color: [1.0, 1.0, 0.0, 1.0],
+    }];
+
+    let input_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("input geometry"),
+        contents: bytemuck::cast_slice(&input_data),
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
+    });
+
+    let data_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("data_bind_group"),
+        layout: &input_bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: input_buffer.as_entire_binding(),
+        }],
+    });
+
+    let u32_size = std::mem::size_of::<u32>() as u32;
+
+    let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        size: (texture_size.width * texture_size.height * u32_size) as wgpu::BufferAddress,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        label: None,
+        mapped_at_creation: false,
+    });
+
     let mut encoder = device.create_command_encoder(&Default::default());
 
     encoder.clear_texture(&target_texture, &Default::default());
@@ -101,6 +124,7 @@ pub async fn run() -> anyhow::Result<()> {
         let mut pass = encoder.begin_compute_pass(&Default::default());
         pass.set_pipeline(&pipeline);
         pass.set_bind_group(0, &target_bind_group, &[]);
+        pass.set_bind_group(1, &data_bind_group, &[]);
         pass.dispatch_workgroups(texture_size.width, texture_size.height, 1);
     }
 
