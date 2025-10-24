@@ -65,11 +65,13 @@ fn main(
     var color = vec4(0.1, 0.1, 0.1, 1.0);
 
     let inputSize = arrayLength(&input);
+    var closestZ = 99999.0;
     for (var i = 0u; i < inputSize; i++) {
         let sphere = input[i];
         let t = ray_intersects_sphere(ray, sphere);
-        if t > 0.0 {
+        if t > 0.0 && t < closestZ {
             color = sphere.color;
+            closestZ = t;
         }
     }
 

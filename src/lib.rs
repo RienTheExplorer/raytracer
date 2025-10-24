@@ -86,11 +86,18 @@ pub async fn run() -> anyhow::Result<()> {
         label: Some("target_bind_group"),
     });
 
-    let input_data = vec![sphere::Sphere {
-        center: (0.0, 0.0, 5.0).into(),
-        radius: 3.0,
-        color: [1.0, 1.0, 0.0, 1.0],
-    }];
+    let input_data = vec![
+        sphere::Sphere {
+            center: (0.0, 0.0, 5.0).into(),
+            radius: 3.0,
+            color: [1.0, 1.0, 0.0, 1.0],
+        },
+        sphere::Sphere {
+            center: (-1.0, -2.0, 6.0).into(),
+            radius: 1.0,
+            color: [0.0, 0.0, 1.0, 1.0],
+        },
+    ];
 
     let input_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("input geometry"),
