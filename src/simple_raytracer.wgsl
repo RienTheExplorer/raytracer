@@ -4,13 +4,22 @@ var t_target: texture_storage_2d<rgba8unorm, write>;
 const VIEWPORT_SIZE: vec2<f32> = vec2(8.0, 8.0);
 
 struct Sphere {
-    @location(0) center: vec3<f32>,
-    @location(1) radius: f32,
-    @location(2) color: vec4<f32>,
+    center: vec4<f32>,
+    color: vec4<f32>,
+    radius: f32,
+}
+
+struct Triangle {
+    vertex1: vec4<f32>,
+    vertex2: vec4<f32>,
+    vertex3: vec4<f32>,
+    color: vec4<f32>,
 }
 
 @group(1) @binding(0)
-var<storage, read> input: array<Sphere>;
+var<storage, read> spheres: array<Sphere>;
+@group(1) @binding(1)
+var<storage, read> triangles: array<Triangle>;
 
 struct Ray {
     origin: vec3<f32>,
@@ -33,7 +42,7 @@ fn ray_intersects_sphere(ray: Ray, sphere: Sphere) -> f32 {
     // We can compute the intersection by solving the quadratiic equation
     // (d . d)t² + 2d . (e - c)t + (e - c) . (e - c) - R² = 0
     // At² + Bt + C = 0
-    let origin_center = ray.origin - sphere.center;
+    let origin_center = ray.origin - sphere.center.xyz;
     let A: f32 = dot(ray.direction, ray.direction); // Could probably be simplified to 1 for normalized vectors
     let B: f32 = dot(ray.direction * 2, origin_center);
     let C: f32 = dot(origin_center, origin_center) - pow(sphere.radius, 2.0);
@@ -62,12 +71,12 @@ fn main(
 
     let ray = compute_orthographic_viewing_ray(texCoords);
 
-    var color = vec4(0.1, 0.1, 0.1, 1.0);
+    var color = vec4(0.1, 0.0, 0.0, 1.0);
 
-    let inputSize = arrayLength(&input);
+    let spheresSize = arrayLength(&spheres);
     var closestZ = 99999.0;
-    for (var i = 0u; i < inputSize; i++) {
-        let sphere = input[i];
+    for (var i = 0u; i < spheresSize; i++) {
+        let sphere = spheres[i];
         let t = ray_intersects_sphere(ray, sphere);
         if t > 0.0 && t < closestZ {
             color = sphere.color;

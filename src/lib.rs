@@ -1,7 +1,7 @@
 use flume::bounded;
 use wgpu::util::DeviceExt;
 
-mod sphere;
+mod geometry;
 
 pub async fn run() -> anyhow::Result<()> {
     let instance = wgpu::Instance::new(&Default::default());
@@ -49,16 +49,28 @@ pub async fn run() -> anyhow::Result<()> {
 
     let input_bind_group_layout =
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
             label: Some("input_bind_group_layout"),
         });
 
@@ -86,32 +98,55 @@ pub async fn run() -> anyhow::Result<()> {
         label: Some("target_bind_group"),
     });
 
-    let input_data = vec![
-        sphere::Sphere {
+    let sphere_input_data = vec![
+        geometry::Sphere {
             center: (0.0, 0.0, 5.0).into(),
+            color: (1.0, 1.0, 0.0, 1.0).into(),
             radius: 3.0,
-            color: [1.0, 1.0, 0.0, 1.0],
+            _padding: [0.0; 3],
         },
-        sphere::Sphere {
-            center: (-1.0, -2.0, 6.0).into(),
-            radius: 1.0,
-            color: [0.0, 0.0, 1.0, 1.0],
+        geometry::Sphere {
+            center: (-1.0, -2.0, 5.3).into(),
+            color: (0.0, 0.0, 1.0, 1.0).into(),
+            radius: 1.5,
+            _padding: [0.0; 3],
         },
     ];
 
-    let input_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("input geometry"),
-        contents: bytemuck::cast_slice(&input_data),
+    let triangle_input_data = vec![geometry::Triangle {
+        vertices: [
+            (-1.0, -1.0, 6.0).into(),
+            (3.0, -2.0, 4.0).into(),
+            (3.5, -1.5, 3.5).into(),
+        ],
+        color: (1.0, 0.0, 0.5).into(),
+    }];
+
+    let sphere_input_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("input spheres"),
+        contents: bytemuck::cast_slice(&sphere_input_data),
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
+    });
+
+    let triangle_input_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("input triangles"),
+        contents: bytemuck::cast_slice(&triangle_input_data),
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
     });
 
     let data_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("data_bind_group"),
         layout: &input_bind_group_layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: input_buffer.as_entire_binding(),
-        }],
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: sphere_input_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: triangle_input_buffer.as_entire_binding(),
+            },
+        ],
     });
 
     let u32_size = std::mem::size_of::<u32>() as u32;
