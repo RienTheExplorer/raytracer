@@ -15,11 +15,30 @@ pub async fn run() -> anyhow::Result<()> {
         .unwrap();
 
     let shader = device.create_shader_module(wgpu::include_wgsl!("simple_raytracer.wgsl"));
+    let downscale_shader = device.create_shader_module(wgpu::include_wgsl!("downscale_ssaa.wgsl"));
+
     let texture_size = wgpu::Extent3d {
         width: 256,
         height: 256,
         depth_or_array_layers: 1,
     };
+
+    let super_sampled_texture = device.create_texture(&wgpu::TextureDescriptor {
+        size: wgpu::Extent3d {
+            width: texture_size.width * 2,
+            height: texture_size.height * 2,
+            depth_or_array_layers: texture_size.depth_or_array_layers,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING,
+        label: Some("super_sampled_texture"),
+        view_formats: &[],
+    });
+    let super_sampled_texture_view =
+        super_sampled_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
     let target_texture = device.create_texture(&wgpu::TextureDescriptor {
         size: texture_size,
@@ -27,11 +46,14 @@ pub async fn run() -> anyhow::Result<()> {
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::COPY_SRC,
         label: Some("target_texture"),
         view_formats: &[],
     });
     let target_texture_view = target_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
     let texture_bind_group_layout =
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -93,9 +115,33 @@ pub async fn run() -> anyhow::Result<()> {
         layout: &texture_bind_group_layout,
         entries: &[wgpu::BindGroupEntry {
             binding: 0,
-            resource: wgpu::BindingResource::TextureView(&target_texture_view),
+            resource: wgpu::BindingResource::TextureView(&super_sampled_texture_view),
         }],
         label: Some("target_bind_group"),
+    });
+
+    let downsample_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label: Some("Downsample Pipeline"),
+        layout: None,
+        module: &downscale_shader,
+        entry_point: Some("main"),
+        compilation_options: Default::default(),
+        cache: Default::default(),
+    });
+    let downsample_bind_group_layout = downsample_pipeline.get_bind_group_layout(0);
+    let downsample_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout: &downsample_bind_group_layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&super_sampled_texture_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(&target_texture_view),
+            },
+        ],
+        label: Some("downsample_bind_group"),
     });
 
     let sphere_input_data = vec![
@@ -167,7 +213,10 @@ pub async fn run() -> anyhow::Result<()> {
         pass.set_pipeline(&pipeline);
         pass.set_bind_group(0, &target_bind_group, &[]);
         pass.set_bind_group(1, &data_bind_group, &[]);
-        pass.dispatch_workgroups(texture_size.width, texture_size.height, 1);
+        pass.dispatch_workgroups(texture_size.width / 8, texture_size.height / 8, 1);
+        pass.set_pipeline(&downsample_pipeline);
+        pass.set_bind_group(0, &downsample_bind_group, &[]);
+        pass.dispatch_workgroups(texture_size.width / 8, texture_size.height / 8, 1);
     }
 
     encoder.copy_texture_to_buffer(

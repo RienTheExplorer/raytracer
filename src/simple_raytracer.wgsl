@@ -3,6 +3,7 @@ var t_target: texture_storage_2d<rgba8unorm, write>;
 
 const VIEWPORT_SIZE: vec2<f32> = vec2(8.0, 8.0);
 const MISS = -1.0;
+const DEPTH_FACTOR = 10.0;
 
 struct Sphere {
     center: vec4<f32>,
@@ -30,8 +31,8 @@ struct Ray {
 fn compute_orthographic_viewing_ray(texCoords: vec2<u32>) -> Ray {
     return Ray(
         vec3(
-            ((f32(texCoords.x) / 256.0) - 0.5) * VIEWPORT_SIZE.x,
-            ((f32(texCoords.y) / 256.0) - 0.5) * VIEWPORT_SIZE.y,
+            ((f32(texCoords.x) / (256.0 * 2.0)) - 0.5) * VIEWPORT_SIZE.x,
+            ((f32(texCoords.y) / (256.0 * 2.0)) - 0.5) * VIEWPORT_SIZE.y,
             0.0
         ),
         vec3(0.0, 0.0, 1.0),
@@ -127,7 +128,7 @@ fn main(
         let sphere = spheres[i];
         let t = ray_intersects_sphere(ray, sphere);
         if t > 0.0 && t < closestZ {
-            color = sphere.color * (1.0 - t / 6.0);
+            color = sphere.color * (1.0 - t / DEPTH_FACTOR);
             closestZ = t;
         }
     }
@@ -136,7 +137,7 @@ fn main(
         let triangle = triangles[i];
         let t = ray_intersects_triangle(ray, triangle);
         if t > 0.0 && t < closestZ {
-            color = triangle.color * (1.0 - t / 6.0);
+            color = triangle.color * (1.0 - t / DEPTH_FACTOR);
             closestZ = t;
         }
     }
