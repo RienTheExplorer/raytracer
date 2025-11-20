@@ -116,8 +116,8 @@ pub async fn run() -> anyhow::Result<()> {
     let triangle_input_data = vec![geometry::Triangle {
         vertices: [
             (-1.0, -1.0, 6.0).into(),
-            (3.0, -2.0, 4.0).into(),
-            (3.5, -1.5, 3.5).into(),
+            (3.0, -3.0, 4.0).into(),
+            (4.0, -0.5, 3.5).into(),
         ],
         color: (1.0, 0.0, 0.5).into(),
     }];
