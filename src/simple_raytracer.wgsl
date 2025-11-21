@@ -4,6 +4,7 @@ var t_target: texture_storage_2d<rgba8unorm, write>;
 const VIEWPORT_SIZE: vec2<f32> = vec2(8.0, 8.0);
 const MISS = -1.0;
 const MAXT = 9999.0;
+const AMBIENT_INTENSITY = 0.2;
 
 struct Surface {
     diffuse_color: vec4<f32>,
@@ -157,7 +158,7 @@ fn shade_lambert(hit: Hit, light: Light) -> vec4<f32> {
 fn shade_blinn_phong(hit: Hit, light: Light, viewing_ray: Ray) -> vec4<f32> {
     let light_direction = normalize(light.position - hit.intersection_point);
     let half_vector = normalize(light_direction - viewing_ray.direction);
-    return vec4(hit.surface.diffuse_color.xyz * light.intensity * max(0.0, dot(hit.normal, light_direction)) + hit.surface.specular_color.xyz * light.intensity * pow(max(0.0, dot(hit.normal, half_vector)), hit.surface.specular_intensity), hit.surface.diffuse_color.w);
+    return vec4(hit.surface.diffuse_color.xyz * AMBIENT_INTENSITY + hit.surface.diffuse_color.xyz * light.intensity * max(0.0, dot(hit.normal, light_direction)) + hit.surface.specular_color.xyz * light.intensity * pow(max(0.0, dot(hit.normal, half_vector)), hit.surface.specular_intensity), hit.surface.diffuse_color.w);
 }
 
 @compute
