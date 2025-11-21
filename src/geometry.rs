@@ -106,9 +106,18 @@ impl From<[f32; 3]> for Color {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Surface {
+    pub diffuse_color: Color,
+    pub specular_color: Color,
+    pub specular_intensity: f32,
+    pub _padding: [f32; 3],
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Sphere {
     pub center: Point,
-    pub color: Color,
+    pub surface: Surface,
     pub radius: f32,
     pub _padding: [f32; 3],
 }
@@ -117,5 +126,5 @@ pub struct Sphere {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Triangle {
     pub vertices: [Point; 3],
-    pub color: Color,
+    pub surface: Surface,
 }

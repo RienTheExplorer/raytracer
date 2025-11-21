@@ -5,9 +5,15 @@ const VIEWPORT_SIZE: vec2<f32> = vec2(8.0, 8.0);
 const MISS = -1.0;
 const MAXT = 9999.0;
 
+struct Surface {
+    diffuse_color: vec4<f32>,
+    specular_color: vec4<f32>,
+    specular_intensity: f32,
+}
+
 struct Sphere {
     center: vec4<f32>,
-    color: vec4<f32>,
+    surface: Surface,
     radius: f32,
 }
 
@@ -15,7 +21,7 @@ struct Triangle {
     vertex1: vec4<f32>,
     vertex2: vec4<f32>,
     vertex3: vec4<f32>,
-    color: vec4<f32>,
+    surface: Surface,
 }
 
 @group(1) @binding(0)
@@ -27,10 +33,10 @@ struct Ray {
     origin: vec3<f32>,
     direction: vec3<f32>,
 }
-struct SurfaceHit {
+struct Hit {
     intersection_point: vec3<f32>,
     normal: vec3<f32>,
-    color: vec4<f32>,
+    surface: Surface,
 }
 
 struct Light {
@@ -139,13 +145,19 @@ fn ray_intersects_triangle(ray: Ray, triangle: Triangle, t0: f32, t1: f32) -> f3
     return t;
 }
 
-fn surdace_normal_triangle(intersection_point: vec3<f32>, triangle: Triangle) -> vec3<f32> {
-    return cross(triangle.vertex2.xyz - triangle.vertex1.xyz, triangle.vertex3.xyz - triangle.vertex1.xyz);
+fn surface_normal_triangle(intersection_point: vec3<f32>, triangle: Triangle) -> vec3<f32> {
+    return normalize(cross(triangle.vertex2.xyz - triangle.vertex1.xyz, triangle.vertex3.xyz - triangle.vertex1.xyz));
 }
 
-fn shade_lambert(surface: SurfaceHit, light: Light) -> vec4<f32> {
-    return vec4(surface.color.xyz * light.intensity * max(0.0,
-        dot(surface.normal, normalize(light.position - surface.intersection_point))), surface.color.w);
+fn shade_lambert(hit: Hit, light: Light) -> vec4<f32> {
+    return vec4(hit.surface.diffuse_color.xyz * light.intensity * max(0.0,
+        dot(hit.normal, normalize(light.position - hit.intersection_point))), hit.surface.diffuse_color.w);
+}
+
+fn shade_blinn_phong(hit: Hit, light: Light, viewing_ray: Ray) -> vec4<f32> {
+    let light_direction = normalize(light.position - hit.intersection_point);
+    let half_vector = normalize(light_direction - viewing_ray.direction);
+    return vec4(hit.surface.diffuse_color.xyz * light.intensity * max(0.0, dot(hit.normal, light_direction)) + hit.surface.specular_color.xyz * light.intensity * pow(max(0.0, dot(hit.normal, half_vector)), hit.surface.specular_intensity), hit.surface.diffuse_color.w);
 }
 
 @compute
@@ -156,8 +168,8 @@ fn main(
     let texCoords = global_invocation_id.xy;
 
     let light = Light(
-        vec3(-1.0, -4.0, -10.0),
-        1.0,
+        vec3(-5.0, -4.0, -8.0),
+        0.8,
     );
 
     //let ray = compute_orthographic_viewing_ray(texCoords);
@@ -167,19 +179,23 @@ fn main(
 
     let spheresSize = arrayLength(&spheres);
     var t1 = MAXT;
-    var surface_hit = SurfaceHit(
+    var hit = Hit(
         vec3(0.0, 0.0, 0.0),
         vec3(0.0, 0.0, 0.0),
-        vec4(0.0, 0.0, 0.0, 1.0),
+        Surface(
+            vec4(0.0, 0.0, 0.0, 1.0),
+            vec4(0.0, 0.0, 0.0, 1.0),
+            0.0,
+        ),
     );
     for (var i = 0u; i < spheresSize; i++) {
         let sphere = spheres[i];
         let t = ray_intersects_sphere(ray, sphere, 0.0, t1);
         if t > 0.0 && t < t1 {
-            surface_hit.color = sphere.color;
+            hit.surface = sphere.surface;
             t1 = t;
-            surface_hit.intersection_point = ray.origin + ray.direction * t;
-            surface_hit.normal = surface_normal_sphere(surface_hit.intersection_point, sphere);
+            hit.intersection_point = ray.origin + ray.direction * t;
+            hit.normal = surface_normal_sphere(hit.intersection_point, sphere);
         }
     }
     let trianglesSize = arrayLength(&triangles);
@@ -187,14 +203,17 @@ fn main(
         let triangle = triangles[i];
         let t = ray_intersects_triangle(ray, triangle, 0.0, t1);
         if t > 0.0 && t < t1 {
-            surface_hit.color = triangle.color;
+            hit.surface = triangle.surface;
             t1 = t;
-            surface_hit.intersection_point = ray.origin + ray.direction * t;
-            surface_hit.normal = surdace_normal_triangle(surface_hit.intersection_point, triangle);
+            hit.intersection_point = ray.origin + ray.direction * t;
+            hit.normal = surface_normal_triangle(hit.intersection_point, triangle);
         }
     }
-    let shaded_color = shade_lambert(surface_hit, light);
+    if t1 != MAXT {
+        //color = shade_lambert(hit, light);
+        color = shade_blinn_phong(hit, light, ray);
+    }
 
-    textureStore(t_target, texCoords, shaded_color);
+    textureStore(t_target, texCoords, color);
 }
 

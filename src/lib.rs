@@ -147,13 +147,23 @@ pub async fn run() -> anyhow::Result<()> {
     let sphere_input_data = vec![
         geometry::Sphere {
             center: (0.0, 0.0, 5.0).into(),
-            color: (1.0, 1.0, 0.0, 1.0).into(),
+            surface: geometry::Surface {
+                diffuse_color: (1.0, 1.0, 0.0, 1.0).into(),
+                specular_color: (0.8, 0.8, 0.8, 1.0).into(),
+                specular_intensity: 1000.0,
+                _padding: [0.0; 3],
+            },
             radius: 3.0,
             _padding: [0.0; 3],
         },
         geometry::Sphere {
             center: (-1.0, -2.0, 5.3).into(),
-            color: (0.0, 0.0, 1.0, 1.0).into(),
+            surface: geometry::Surface {
+                diffuse_color: (0.0, 0.0, 1.0, 1.0).into(),
+                specular_color: (0.8, 0.8, 0.8, 1.0).into(),
+                specular_intensity: 10.0,
+                _padding: [0.0; 3],
+            },
             radius: 1.5,
             _padding: [0.0; 3],
         },
@@ -165,7 +175,12 @@ pub async fn run() -> anyhow::Result<()> {
             (-1.0, -1.0, 6.0).into(),
             (4.0, -0.5, 3.5).into(),
         ],
-        color: (1.0, 0.0, 0.5).into(),
+        surface: geometry::Surface {
+            diffuse_color: (1.0, 0.0, 0.5, 1.0).into(),
+            specular_color: (0.8, 0.8, 0.8, 1.0).into(),
+            specular_intensity: 10.0,
+            _padding: [0.0; 3],
+        },
     }];
 
     let sphere_input_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
