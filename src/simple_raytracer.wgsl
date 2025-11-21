@@ -39,7 +39,7 @@ fn compute_orthographic_viewing_ray(texCoords: vec2<u32>) -> Ray {
     );
 }
 
-fn ray_intersects_sphere(ray: Ray, sphere: Sphere) -> f32 {
+fn ray_intersects_sphere(ray: Ray, sphere: Sphere, t0: f32, t1: f32) -> f32 {
     // Given a ray p(t) = e + td and a sphere with center c and radius R.
     // We can compute the intersection by solving the quadratiic equation
     // (d . d)t² + 2d . (e - c)t + (e - c) . (e - c) - R² = 0
@@ -56,15 +56,16 @@ fn ray_intersects_sphere(ray: Ray, sphere: Sphere) -> f32 {
     } else {
         let num1: f32 = (-B - sqrt(discriminant)) / (2.0 * A);
         let num2: f32 = (-B + sqrt(discriminant)) / (2.0 * A);
-        if num1 >= 0.0 && num2 >= 0.0 {
-            return min(num1, num2);
-        } else {
-            return max(num1, num2);
-        }
+        let num = select(
+            max(num1, num2),
+            min(num1, num2),
+            num1 >= t0 && num2 >= t0
+        );
+        return select(-1.0, num, num < t1);
     }
 }
 
-fn ray_intersects_triangle(ray: Ray, triangle: Triangle) -> f32 {
+fn ray_intersects_triangle(ray: Ray, triangle: Triangle, t0: f32, t1: f32) -> f32 {
     // Given a ray p(t) = e + td and a triangle with vertices as vectors a, b, c.
     // The ray intersects with the triangle if there exists beta and gamma for which
     // e + td = a + beta * (b - a) + gamma * (c - a)
@@ -97,7 +98,7 @@ fn ray_intersects_triangle(ray: Ray, triangle: Triangle) -> f32 {
     let M = a * ei_minus_hf + b * gf_minus_di + c * dh_minus_eg;
 
     let t = -(f * ak_minus_jb + e * jc_minus_al + d * bl_minus_kc) / M;
-    if t < 0.0 {
+    if t < t0 || t > t1 {
         return MISS;
     }
     let gamma = (i * ak_minus_jb + h * jc_minus_al + g * bl_minus_kc) / M;
@@ -123,22 +124,22 @@ fn main(
     var color = vec4(0.1, 0.1, 0.1, 1.0);
 
     let spheresSize = arrayLength(&spheres);
-    var closestZ = 99999.0;
+    var closestT = 99999.0;
     for (var i = 0u; i < spheresSize; i++) {
         let sphere = spheres[i];
-        let t = ray_intersects_sphere(ray, sphere);
-        if t > 0.0 && t < closestZ {
+        let t = ray_intersects_sphere(ray, sphere, 0.0, closestT);
+        if t > 0.0 && t < closestT {
             color = sphere.color * (1.0 - t / DEPTH_FACTOR);
-            closestZ = t;
+            closestT = t;
         }
     }
     let trianglesSize = arrayLength(&triangles);
     for (var i = 0u; i < trianglesSize; i++) {
         let triangle = triangles[i];
-        let t = ray_intersects_triangle(ray, triangle);
-        if t > 0.0 && t < closestZ {
+        let t = ray_intersects_triangle(ray, triangle, 0.0, closestT);
+        if t > 0.0 && t < closestT {
             color = triangle.color * (1.0 - t / DEPTH_FACTOR);
-            closestZ = t;
+            closestT = t;
         }
     }
 
