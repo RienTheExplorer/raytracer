@@ -124,22 +124,22 @@ fn main(
     var color = vec4(0.1, 0.1, 0.1, 1.0);
 
     let spheresSize = arrayLength(&spheres);
-    var closestT = 99999.0;
+    var t1 = 99999.0;
     for (var i = 0u; i < spheresSize; i++) {
         let sphere = spheres[i];
-        let t = ray_intersects_sphere(ray, sphere, 0.0, closestT);
-        if t > 0.0 && t < closestT {
+        let t = ray_intersects_sphere(ray, sphere, 0.0, t1);
+        if t > 0.0 && t < t1 {
             color = sphere.color * (1.0 - t / DEPTH_FACTOR);
-            closestT = t;
+            t1 = t;
         }
     }
     let trianglesSize = arrayLength(&triangles);
     for (var i = 0u; i < trianglesSize; i++) {
         let triangle = triangles[i];
-        let t = ray_intersects_triangle(ray, triangle, 0.0, closestT);
-        if t > 0.0 && t < closestT {
+        let t = ray_intersects_triangle(ray, triangle, 0.0, t1);
+        if t > 0.0 && t < t1 {
             color = triangle.color * (1.0 - t / DEPTH_FACTOR);
-            closestT = t;
+            t1 = t;
         }
     }
 
