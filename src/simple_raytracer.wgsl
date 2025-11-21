@@ -3,7 +3,6 @@ var t_target: texture_storage_2d<rgba8unorm, write>;
 
 const VIEWPORT_SIZE: vec2<f32> = vec2(8.0, 8.0);
 const MISS = -1.0;
-const DEPTH_FACTOR = 10.0;
 
 struct Sphere {
     center: vec4<f32>,
@@ -36,6 +35,19 @@ fn compute_orthographic_viewing_ray(texCoords: vec2<u32>) -> Ray {
             0.0
         ),
         vec3(0.0, 0.0, 1.0),
+    );
+}
+
+fn compute_perspective_viewing_ray(texCoords: vec2<u32>, focalLength: f32) -> Ray {
+    let image_plane_coord = vec3(
+        ((f32(texCoords.x) / (256.0 * 2.0)) - 0.5) * VIEWPORT_SIZE.x,
+        ((f32(texCoords.y) / (256.0 * 2.0)) - 0.5) * VIEWPORT_SIZE.y,
+        0.0
+    );
+    let origin = vec3(0.0, 0.0, -focalLength);
+    return Ray(
+        origin,
+        normalize(image_plane_coord - origin)
     );
 }
 
@@ -119,7 +131,8 @@ fn main(
 ) {
     let texCoords = global_invocation_id.xy;
 
-    let ray = compute_orthographic_viewing_ray(texCoords);
+    //let ray = compute_orthographic_viewing_ray(texCoords);
+    let ray = compute_perspective_viewing_ray(texCoords, 20.0);
 
     var color = vec4(0.1, 0.1, 0.1, 1.0);
 
@@ -129,7 +142,7 @@ fn main(
         let sphere = spheres[i];
         let t = ray_intersects_sphere(ray, sphere, 0.0, t1);
         if t > 0.0 && t < t1 {
-            color = sphere.color * (1.0 - t / DEPTH_FACTOR);
+            color = sphere.color;
             t1 = t;
         }
     }
@@ -138,7 +151,7 @@ fn main(
         let triangle = triangles[i];
         let t = ray_intersects_triangle(ray, triangle, 0.0, t1);
         if t > 0.0 && t < t1 {
-            color = triangle.color * (1.0 - t / DEPTH_FACTOR);
+            color = triangle.color;
             t1 = t;
         }
     }
