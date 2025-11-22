@@ -25,8 +25,8 @@ pub async fn run() -> anyhow::Result<()> {
 
     let super_sampled_texture = device.create_texture(&wgpu::TextureDescriptor {
         size: wgpu::Extent3d {
-            width: texture_size.width * 2,
-            height: texture_size.height * 2,
+            width: texture_size.width * 4,
+            height: texture_size.height * 4,
             depth_or_array_layers: texture_size.depth_or_array_layers,
         },
         mip_level_count: 1,
@@ -169,19 +169,34 @@ pub async fn run() -> anyhow::Result<()> {
         },
     ];
 
-    let triangle_input_data = vec![geometry::Triangle {
-        vertices: [
-            (3.0, -3.0, 4.0).into(),
-            (-1.0, -1.0, 6.0).into(),
-            (4.0, -0.5, 3.5).into(),
-        ],
-        surface: geometry::Surface {
-            diffuse_color: (1.0, 0.0, 0.5, 1.0).into(),
-            specular_color: (0.8, 0.8, 0.8, 1.0).into(),
-            specular_intensity: 10.0,
-            _padding: [0.0; 3],
+    let triangle_input_data = vec![
+        geometry::Triangle {
+            vertices: [
+                (3.0, -3.0, 4.0).into(),
+                (-1.0, -1.0, 6.0).into(),
+                (4.0, -0.5, 3.5).into(),
+            ],
+            surface: geometry::Surface {
+                diffuse_color: (1.0, 0.0, 0.5, 1.0).into(),
+                specular_color: (0.8, 0.8, 0.8, 1.0).into(),
+                specular_intensity: 10.0,
+                _padding: [0.0; 3],
+            },
         },
-    }];
+        geometry::Triangle {
+            vertices: [
+                (-2.25, -0.5, 2.0).into(),
+                (-0.6, -0.45, 2.0).into(),
+                (-1.6, -2.3, 2.0).into(),
+            ],
+            surface: geometry::Surface {
+                diffuse_color: (0.5, 0.2, 0.0, 1.0).into(),
+                specular_color: (0.8, 0.8, 0.8, 1.0).into(),
+                specular_intensity: 10.0,
+                _padding: [0.0; 3],
+            },
+        },
+    ];
 
     let sphere_input_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("input spheres"),
@@ -228,7 +243,7 @@ pub async fn run() -> anyhow::Result<()> {
         pass.set_pipeline(&pipeline);
         pass.set_bind_group(0, &target_bind_group, &[]);
         pass.set_bind_group(1, &data_bind_group, &[]);
-        pass.dispatch_workgroups(texture_size.width / 8, texture_size.height / 8, 1);
+        pass.dispatch_workgroups(texture_size.width / 4, texture_size.height / 4, 1);
         pass.set_pipeline(&downsample_pipeline);
         pass.set_bind_group(0, &downsample_bind_group, &[]);
         pass.dispatch_workgroups(texture_size.width / 8, texture_size.height / 8, 1);

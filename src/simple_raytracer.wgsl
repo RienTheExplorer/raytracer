@@ -48,8 +48,8 @@ struct Light {
 fn compute_orthographic_viewing_ray(texCoords: vec2<u32>) -> Ray {
     return Ray(
         vec3(
-            ((f32(texCoords.x) / (256.0 * 2.0)) - 0.5) * VIEWPORT_SIZE.x,
-            ((f32(texCoords.y) / (256.0 * 2.0)) - 0.5) * VIEWPORT_SIZE.y,
+            ((f32(texCoords.x) / (256.0 * 4.0)) - 0.5) * VIEWPORT_SIZE.x,
+            ((f32(texCoords.y) / (256.0 * 4.0)) - 0.5) * VIEWPORT_SIZE.y,
             0.0
         ),
         vec3(0.0, 0.0, 1.0),
@@ -58,8 +58,8 @@ fn compute_orthographic_viewing_ray(texCoords: vec2<u32>) -> Ray {
 
 fn compute_perspective_viewing_ray(texCoords: vec2<u32>, focalLength: f32) -> Ray {
     let image_plane_coord = vec3(
-        ((f32(texCoords.x) / (256.0 * 2.0)) - 0.5) * VIEWPORT_SIZE.x,
-        ((f32(texCoords.y) / (256.0 * 2.0)) - 0.5) * VIEWPORT_SIZE.y,
+        ((f32(texCoords.x) / (256.0 * 4.0)) - 0.5) * VIEWPORT_SIZE.x,
+        ((f32(texCoords.y) / (256.0 * 4.0)) - 0.5) * VIEWPORT_SIZE.y,
         0.0
     );
     let origin = vec3(0.0, 0.0, -focalLength);
@@ -91,7 +91,7 @@ fn ray_intersects_sphere(ray: Ray, sphere: Sphere, t0: f32, t1: f32) -> f32 {
             min(num1, num2),
             num1 >= t0 && num2 >= t0
         );
-        return select(-1.0, num, num < t1);
+        return select(-1.0, num, num >= t0 && num < t1);
     }
 }
 
@@ -150,6 +150,10 @@ fn surface_normal_triangle(intersection_point: vec3<f32>, triangle: Triangle) ->
     return normalize(cross(triangle.vertex2.xyz - triangle.vertex1.xyz, triangle.vertex3.xyz - triangle.vertex1.xyz));
 }
 
+fn shade_ambient(hit: Hit, light: Light) -> vec4<f32> {
+    return vec4(hit.surface.diffuse_color.xyz * AMBIENT_INTENSITY, hit.surface.diffuse_color.w);
+}
+
 fn shade_lambert(hit: Hit, light: Light) -> vec4<f32> {
     return vec4(hit.surface.diffuse_color.xyz * light.intensity * max(0.0,
         dot(hit.normal, normalize(light.position - hit.intersection_point))), hit.surface.diffuse_color.w);
@@ -158,7 +162,7 @@ fn shade_lambert(hit: Hit, light: Light) -> vec4<f32> {
 fn shade_blinn_phong(hit: Hit, light: Light, viewing_ray: Ray) -> vec4<f32> {
     let light_direction = normalize(light.position - hit.intersection_point);
     let half_vector = normalize(light_direction - viewing_ray.direction);
-    return vec4(hit.surface.diffuse_color.xyz * AMBIENT_INTENSITY + hit.surface.diffuse_color.xyz * light.intensity * max(0.0, dot(hit.normal, light_direction)) + hit.surface.specular_color.xyz * light.intensity * pow(max(0.0, dot(hit.normal, half_vector)), hit.surface.specular_intensity), hit.surface.diffuse_color.w);
+    return vec4(shade_ambient(hit, light).xyz + shade_lambert(hit, light).xyz + hit.surface.specular_color.xyz * light.intensity * pow(max(0.0, dot(hit.normal, half_vector)), hit.surface.specular_intensity), hit.surface.diffuse_color.w);
 }
 
 @compute
@@ -169,7 +173,7 @@ fn main(
     let texCoords = global_invocation_id.xy;
 
     let light = Light(
-        vec3(-5.0, -4.0, -8.0),
+        vec3(-5.0, -3.0, -2.0),
         0.8,
     );
 
@@ -178,7 +182,6 @@ fn main(
 
     var color = vec4(0.1, 0.1, 0.1, 1.0);
 
-    let spheresSize = arrayLength(&spheres);
     var t1 = MAXT;
     var hit = Hit(
         vec3(0.0, 0.0, 0.0),
@@ -189,6 +192,8 @@ fn main(
             0.0,
         ),
     );
+
+    let spheresSize = arrayLength(&spheres);
     for (var i = 0u; i < spheresSize; i++) {
         let sphere = spheres[i];
         let t = ray_intersects_sphere(ray, sphere, 0.0, t1);
@@ -210,9 +215,31 @@ fn main(
             hit.normal = surface_normal_triangle(hit.intersection_point, triangle);
         }
     }
+
+    let light_vector = light.position - hit.intersection_point;
+    let light_distance = length(light_vector);
+    let light_direction = light_vector / light_distance;
+    let shadow_ray = Ray(
+        hit.intersection_point,
+        light_direction,
+    );
+    var shadow = false;
+    for (var i = 0u; !shadow && i < spheresSize; i++) {
+        let sphere = spheres[i];
+        shadow = MISS != ray_intersects_sphere(shadow_ray, sphere, 0.001, light_distance);
+    }
+    for (var i = 0u; !shadow && i < trianglesSize; i++) {
+        let triangle = triangles[i];
+        shadow = MISS != ray_intersects_triangle(shadow_ray, triangle, 0.001, light_distance);
+    }
+
     if t1 != MAXT {
-        //color = shade_lambert(hit, light);
-        color = shade_blinn_phong(hit, light, ray);
+        if shadow {
+            color = shade_ambient(hit, light);
+        } else {
+            //color = shade_lambert(hit, light);
+            color = shade_blinn_phong(hit, light, ray);
+        }
     }
 
     textureStore(t_target, texCoords, color);
